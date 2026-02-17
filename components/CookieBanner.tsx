@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 
 // 1. DECLARAÇÃO PARA O TYPESCRIPT:
-// Isso remove o erro de "propriedade não existe no objeto window"
+// Isso impede que o compilador reclame que 'Evergage' não existe no window.
 declare global {
   interface Window {
     Evergage: any;
@@ -22,28 +22,33 @@ export default function CookieBanner() {
   }, []);
 
   const handleAccept = () => {
-    // 1. Salva a preferência localmente no navegador
+    // 1. Salva a preferência localmente no navegador imediatamente
     localStorage.setItem('cookie-consent', 'true');
     
-    // 2. Avisa o SDK do Evergage (MCP) que o consentimento foi dado
-    // Usamos uma verificação segura para garantir que o script já carregou
+    // 2. Tenta avisar o MCP (Evergage)
+    // Verificamos se window.Evergage existe E se a função específica existe
     if (typeof window !== "undefined" && window.Evergage) {
       try {
-        window.Evergage.sendInstanceConsent({
-          purpose: "Tracking",
-          action: "OptIn"
-        });
+        // Verifica se a função de consentimento está disponível
+        if (typeof window.Evergage.sendInstanceConsent === "function") {
+          window.Evergage.sendInstanceConsent({
+            purpose: "Tracking",
+            action: "OptIn"
+          });
+        }
 
-        // Força o sitemap a re-inicializar e capturar a página atual
-        window.Evergage.reinit();
+        // Verifica se a função de reinicialização está disponível
+        if (typeof window.Evergage.reinit === "function") {
+          window.Evergage.reinit();
+        }
         
-        console.log("MCP: Consentimento registrado com sucesso.");
+        console.log("MCP: Consentimento registrado e SDK reiniciado.");
       } catch (error) {
-        console.error("MCP: Erro ao enviar sinal de consentimento:", error);
+        // Silencia erros caso o SDK esteja em processo de carregamento
+        console.error("MCP: Erro ao interagir com o SDK:", error);
       }
     } else {
-      // Caso o script ainda não tenha carregado, o Sitemap lerá o localStorage no próximo refresh
-      console.warn("MCP: SDK ainda não carregado. O consentimento foi salvo localmente.");
+      console.warn("MCP: SDK ainda não carregado. O consentimento foi salvo e será lido na próxima navegação.");
     }
 
     // Esconde o banner após o clique
@@ -58,13 +63,13 @@ export default function CookieBanner() {
       <div className="mb-4 md:mb-0 md:mr-8">
         <h3 className="text-lg font-bold mb-1">Privacidade e Cookies</h3>
         <p className="text-sm text-gray-300">
-          Utilizamos cookies e tecnologias de rastreamento para entender como você interage com nosso site e oferecer ofertas personalizadas.
+          Utilizamos cookies e tecnologias de rastreamento para entender como você interage com nosso site e oferecer ofertas personalizadas através do MCP.
         </p>
       </div>
       <div className="flex gap-4 shrink-0">
         <button 
           onClick={handleAccept}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-md font-bold transition-all transform active:scale-95"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-md font-bold transition-all transform active:scale-95 shadow-lg"
         >
           Aceitar e Continuar
         </button>
