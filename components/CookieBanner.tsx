@@ -13,7 +13,6 @@ export default function CookieBanner() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Verifica se o usuário já tomou uma decisão anteriormente
     const consent = localStorage.getItem('cookie-consent');
     if (!consent) {
       setIsVisible(true);
@@ -21,15 +20,14 @@ export default function CookieBanner() {
   }, []);
 
   const handleAccept = () => {
-    // 1. Salva a escolha do usuário no navegador
+    // 1. Salva a escolha do usuário no navegador imediatamente
     localStorage.setItem('cookie-consent', 'true');
     
-    // 2. Acessa o MCP (Evergage) de forma segura
     const evg = typeof window !== "undefined" ? window.Evergage : null;
 
     if (evg) {
       try {
-        // A. Envia o consentimento técnico (Necessário para destravar o rastreio no servidor)
+        // A. Envia o consentimento técnico (Destrava o rastreio no servidor)
         if (typeof evg.sendInstanceConsent === "function") {
           evg.sendInstanceConsent({
             purpose: "Tracking",
@@ -37,20 +35,25 @@ export default function CookieBanner() {
           });
         }
 
-        // B. NOVO: Envia o evento nomeado para o Event Stream
-        // Isso substitui a "/" pelo nome da ação que você escolheu
-        if (typeof evg.sendEvent === "function") {
-          evg.sendEvent({
-            action: "Consentimento de Rastreio Aceito"
-          });
-        }
+        // B. AJUSTE: Delay para evitar o erro de 'onEventSend' undefined
+        // Damos 200ms para o SDK processar o OptIn e estabilizar o Sitemap
+        setTimeout(() => {
+          try {
+            if (typeof evg.sendEvent === "function") {
+              evg.sendEvent({
+                action: "Consentimento de Rastreio Aceito"
+              });
+            }
 
-        // C. Reinicia o Sitemap para processar a página atual com as novas permissões
-        if (typeof evg.reinit === "function") {
-          evg.reinit();
-        }
+            if (typeof evg.reinit === "function") {
+              evg.reinit();
+            }
+            console.log("MCP: Consentimento e Re-init processados com sucesso.");
+          } catch (innerError) {
+            console.warn("MCP: Falha ao enviar evento de consentimento, mas o rastreio foi liberado.");
+          }
+        }, 200);
         
-        console.log("MCP: Consentimento registrado e evento enviado.");
       } catch (error) {
         console.error("MCP: Erro ao interagir com o SDK:", error);
       }
