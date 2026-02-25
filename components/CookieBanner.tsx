@@ -1,4 +1,4 @@
-'use client'; // Essencial para rodar no lado do cliente no Next.js
+'use client';
 
 import { useState, useEffect } from 'react';
 
@@ -13,6 +13,7 @@ export default function CookieBanner() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    // Verifica se o usuário já tomou uma decisão anteriormente
     const consent = localStorage.getItem('cookie-consent');
     if (!consent) {
       setIsVisible(true);
@@ -27,7 +28,7 @@ export default function CookieBanner() {
 
     if (evg) {
       try {
-        // A. Envia o consentimento técnico (Destrava o rastreio no servidor)
+        // A. Consentimento técnico: Destrava o envio de dados no servidor da Salesforce
         if (typeof evg.sendInstanceConsent === "function") {
           evg.sendInstanceConsent({
             purpose: "Tracking",
@@ -35,30 +36,22 @@ export default function CookieBanner() {
           });
         }
 
-        // B. AJUSTE: Delay para evitar o erro de 'onEventSend' undefined
-        // Damos 200ms para o SDK processar o OptIn e estabilizar o Sitemap
+        // B. Delay de segurança (300ms): 
+        // Em vez de enviar um evento manual que gera conflito de tempo, 
+        // apenas reiniciamos o Sitemap. Ele enviará automaticamente o evento 
+        // da página atual (Home ou Produto) agora que tem permissão.
         setTimeout(() => {
-          try {
-            if (typeof evg.sendEvent === "function") {
-              evg.sendEvent({
-                action: "Consentimento de Rastreio Aceito"
-              });
-            }
-
-            if (typeof evg.reinit === "function") {
-              evg.reinit();
-            }
-            console.log("MCP: Consentimento e Re-init processados com sucesso.");
-          } catch (innerError) {
-            console.warn("MCP: Falha ao enviar evento de consentimento, mas o rastreio foi liberado.");
+          if (typeof evg.reinit === "function") {
+            evg.reinit();
+            console.log("MCP: Rastreio ativado e Sitemap reinicializado.");
           }
-        }, 200);
+        }, 300);
         
       } catch (error) {
-        console.error("MCP: Erro ao interagir com o SDK:", error);
+        console.error("MCP: Erro ao ativar o SDK:", error);
       }
     } else {
-      console.warn("MCP: SDK ainda não carregado.");
+      console.warn("MCP: SDK do Evergage não detectado no momento do clique.");
     }
 
     // Fecha o banner visualmente
