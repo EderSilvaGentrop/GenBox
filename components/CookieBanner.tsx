@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 
 // 1. Definição Global para o TypeScript
-// Isso evita o erro de 'Evergage does not exist on type Window'
 declare global {
   interface Window {
     Evergage: any;
@@ -25,12 +24,12 @@ export default function CookieBanner() {
     // 1. Salva a escolha do usuário no navegador
     localStorage.setItem('cookie-consent', 'true');
     
-    // 2. Tenta avisar o MCP (Evergage) de forma segura
+    // 2. Acessa o MCP (Evergage) de forma segura
     const evg = typeof window !== "undefined" ? window.Evergage : null;
 
     if (evg) {
       try {
-        // Verifica se as funções específicas já foram injetadas pelo SDK
+        // A. Envia o consentimento técnico (Necessário para destravar o rastreio no servidor)
         if (typeof evg.sendInstanceConsent === "function") {
           evg.sendInstanceConsent({
             purpose: "Tracking",
@@ -38,25 +37,31 @@ export default function CookieBanner() {
           });
         }
 
-        // Força a re-análise da página agora com permissão
+        // B. NOVO: Envia o evento nomeado para o Event Stream
+        // Isso substitui a "/" pelo nome da ação que você escolheu
+        if (typeof evg.sendEvent === "function") {
+          evg.sendEvent({
+            action: "Consentimento de Rastreio Aceito"
+          });
+        }
+
+        // C. Reinicia o Sitemap para processar a página atual com as novas permissões
         if (typeof evg.reinit === "function") {
           evg.reinit();
         }
         
-        console.log("MCP: Consentimento registrado e rastreio iniciado.");
+        console.log("MCP: Consentimento registrado e evento enviado.");
       } catch (error) {
         console.error("MCP: Erro ao interagir com o SDK:", error);
       }
     } else {
-      // Se o script ainda estiver carregando, o sitemap lerá o localStorage no próximo clique/página
-      console.warn("MCP: SDK ainda não carregado. O consentimento foi salvo localmente.");
+      console.warn("MCP: SDK ainda não carregado.");
     }
 
     // Fecha o banner visualmente
     setIsVisible(false);
   };
 
-  // Se o consentimento já existe, o banner não aparece
   if (!isVisible) return null;
 
   return (
