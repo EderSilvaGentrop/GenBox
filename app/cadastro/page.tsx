@@ -41,13 +41,36 @@ export default function CadastroPage() {
 
   const handleCadastro = (e: React.FormEvent) => {
     e.preventDefault();
-    if (nome.trim()) {
-      localStorage.setItem('user_name', nome);
-      setEnviado(true);
-      setTimeout(() => {
-        router.push('/');
-      }, 3000);
+  
+    if (!nome.trim() || !email.trim() || !cpf.trim()) return;
+  
+    // Salva no localStorage
+    localStorage.setItem('user_name', nome);
+    localStorage.setItem('user_email', email);
+    localStorage.setItem('user_cpf', cpf);
+  
+    // Dispara evento para MCP
+    if (typeof window !== "undefined" && (window as any).Evergage) {
+      (window as any).Evergage.sendEvent({
+        action: "User Register",
+        user: {
+          id: email.trim(), // IDENTIFICADOR ÚNICO
+          attributes: {
+            Nome: nome.trim(),
+            cpf: cpf.replace(/\D/g, ""), // envia sem máscara
+            emailAddress: email.trim()
+          }
+        }
+      });
+  
+      console.log("MCP Debug: Cadastro enviado para MCP:", email);
     }
+  
+    setEnviado(true);
+  
+    setTimeout(() => {
+      router.push('/');
+    }, 3000);
   };
 
   return (
