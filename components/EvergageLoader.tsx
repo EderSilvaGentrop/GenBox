@@ -15,19 +15,30 @@ export default function EvergageLoader() {
   const [sdkUrl, setSdkUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Busca a vertical no localStorage (mesma chave do seu page.tsx)
     const activeVertical = localStorage.getItem('mcp_vertical_teste') || 'ecommerce';
-    
-    // Define a URL baseada no mapeamento
     setSdkUrl(SDK_MAP[activeVertical] || SDK_MAP.ecommerce);
   }, []);
 
   if (!sdkUrl) return null;
 
   return (
-    <Script 
-      src={sdkUrl}
-      strategy="afterInteractive" 
-    />
+    <>
+      {/* 1. Script de Inicialização (Cria os objetos globais) */}
+      <Script id="mcp-init" strategy="afterInteractive">
+        {`
+          window.SalesforceInteractions = window.SalesforceInteractions || { queue: [] };
+          window.Evergage = window.Evergage || { queue: [] };
+        `}
+      </Script>
+
+      {/* 2. O SDK escolhido */}
+      <Script 
+        src={sdkUrl}
+        strategy="afterInteractive"
+        onLoad={() => {
+          console.log("MCP SDK loaded:", sdkUrl);
+        }}
+      />
+    </>
   );
 }
