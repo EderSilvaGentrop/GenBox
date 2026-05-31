@@ -95,31 +95,33 @@ export default function CadastroPage() {
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_cpf', cpf);
   
-    // 3. ESTRATÉGIA DE FILA DE ESPERA AMARRADA COM O CALLBACK
+    // 3. ESTRATÉGIA RESILIENTE DE POLLING (INTERVALO) SEM TRAVAMENTO
     if (typeof window !== "undefined") {
       const SI = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
   
       if (SI && typeof SI.sendEvent === "function") {
-        // Cenário A: O script já está pronto na memória RAM, envia e depois redireciona
+        // Cenário A: O script já está totalmente pronto no escopo global
         despacharDadosSalesforce(SI, finalizarProcessoCadastro);
       } else {
-        // Cenário B: O script foi injetado mas está carregando, aguarda o evento nativo de load
-        console.log("Salesforce Debug: SDK em cache/carregamento. Aguardando ativação...");
-        const scriptDOM = document.querySelector('script[src*="c360a.min.js"]') || document.getElementById('sf-interactions-sdk');
+        // Cenário B: O script está injetado mas o objeto do window está terminando de iniciar
+        console.log("Salesforce Debug: Aguardando inicialização do escopo global...");
         
-        if (scriptDOM) {
-          scriptDOM.addEventListener('load', () => {
-            const SI_ATUALIZADO = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
-            if (SI_ATUALIZADO && typeof SI_ATUALIZADO.sendEvent === "function") {
-              despacharDadosSalesforce(SI_ATUALIZADO, finalizarProcessoCadastro);
-            } else {
-              finalizarProcessoCadastro();
-            }
-          });
-        } else {
-          console.error("Salesforce SDK indisponível no momento do clique (tag script ausente).");
-          finalizarProcessoCadastro();
-        }
+        let tentativas = 0;
+        const checarSDK = setInterval(() => {
+          tentativas++;
+          const SI_REAVALIADO = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
+          
+          if (SI_REAVALIADO && typeof SI_REAVALIADO.sendEvent === "function") {
+            clearInterval(checarSDK);
+            despacharDadosSalesforce(SI_REAVALIADO, finalizarProcessoCadastro);
+          } 
+          // Limite de segurança (Timeout): Após 2 segundos (20 tentativas), libera o usuário para evitar o congelamento da tela
+          else if (tentativas >= 20) {
+            clearInterval(checarSDK);
+            console.warn("Salesforce Timeout: Avançando cadastro sem rastreamento para evitar travamento da UI.");
+            finalizarProcessoCadastro();
+          }
+        }, 100); // Executa a checagem a cada 100 milissegundos
       }
     } else {
       finalizarProcessoCadastro();
