@@ -22,10 +22,21 @@ export default function CadastroPage() {
   const [vertical, setVertical] = useState('ecommerce');
   const router = useRouter();
 
-  // Recupera a vertical ativa para manter a identidade visual
+  // Garante o estado visual e força o script do Salesforce no escopo global
   useEffect(() => {
     const salva = localStorage.getItem('mcp_vertical_teste');
     if (salva && VERTICAIS[salva]) setVertical(salva);
+
+    // Verifica se o SDK já está instanciado no DOM para não duplicar tags
+    const scriptExistente = document.querySelector('script[src*="c360a.min.js"]');
+    
+    if (!scriptExistente && typeof window !== "undefined") {
+      console.log("Salesforce Debug: Injetando dinamicamente o c360a.min.js na rota de cadastro...");
+      const script = document.createElement('script');
+      script.src = "https://sitegenbox.vercel.app/c360a.min.js"; 
+      script.async = true;
+      document.head.appendChild(script);
+    }
   }, []);
 
   const config = VERTICAIS[vertical] || VERTICAIS.ecommerce;
@@ -49,37 +60,32 @@ export default function CadastroPage() {
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_cpf', cpf);
   
-    // --- INTEGRAÇÃO AJUSTADA COM FALLBACK DE SEGURANÇA PARA O SITEMAP ---
+    // --- VALIDAÇÃO COM CAPTURA GARANTIDA (FALLBACK DE VARIÁVEIS) ---
     if (typeof window !== "undefined") {
-      // Procura por qualquer uma das instâncias possíveis que o sitemap ou o loader injetaram no window
+      // Procura em todas as frentes conhecidas onde o SDK se expõe na janela
       const SI = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
   
       if (SI && typeof SI.sendEvent === "function") {
-        // Separa o nome pelas lacunas de espaço
+        // Divide as cadeias de strings pelos espaços em branco
         const partesDoNome = nome.trim().split(/\s+/);
-        
-        // Pega a primeira palavra como First Name
         const primeiroNome = partesDoNome[0] || "Usuário";
-        
-        // Junta o restante das palavras como Last Name (se houver mais de um nome)
         const sobrenome = partesDoNome.slice(1).join(' ') || "";
   
         SI.sendEvent({
           interaction: {
-            name: "User Register", // Nome correto da ação mapeada
+            name: "User Register", 
           },
           userProfileAttr: {
-            id: email.trim(),               // Identificador único do perfil
-            firstName: primeiroNome,        // Envia apenas o Primeiro Nome
-            lastName: sobrenome,            // Envia o Sobrenome isolado
-            emailAddress: email.trim(),     // E-mail do usuário
-            cpf: cpf.replace(/\D/g, "")     // Remove os pontos e traços do CPF
+            id: email.trim(),               
+            firstName: primeiroNome,        
+            lastName: sobrenome,            
+            emailAddress: email.trim(),     
+            cpf: cpf.replace(/\D/g, "")     
           }
         });
   
-        console.log("Salesforce Debug: Cadastro enviado com sucesso via SDK!", email);
+        console.log("Salesforce Debug: Cadastro transmitido via SDK!", email);
       } else {
-        // Fallback caso a aplicação rode antes do script da Salesforce carregar por completo
         console.error("Salesforce SDK indisponível no momento do clique (window.SalesforceInteractions não carregou a tempo).");
       }
     }
@@ -94,7 +100,6 @@ export default function CadastroPage() {
   return (
     <main className="min-h-screen bg-white text-black font-sans pb-20">
       <Header />
-      {/* Navbar agora recebe as categorias dinâmicas */}
       <Navbar categorias={config.categorias} />
 
       <div className="max-w-[1400px] mx-auto px-4 md:px-6 py-12 md:py-24 flex justify-center">
