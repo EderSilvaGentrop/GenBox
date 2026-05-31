@@ -58,32 +58,44 @@ export default function CadastroPage() {
 
   // 2. Função isolada para disparar o evento retornando a Promise do SDK
   const despacharDadosSalesforce = (SI: any, callbackFinalizar: () => void) => {
+    // CORREÇÃO SPA: Força o re-init do Sitemap para reativar o escopo e capturar a rota /cadastro
+    if (typeof SI.reinit === "function") {
+      try {
+        SI.reinit();
+      } catch (e) {
+        console.warn("Salesforce: reinit executado com avisos de rota.");
+      }
+    }
+
     const partesDoNome = nome.trim().split(/\s+/);
     const primeiroNome = partesDoNome[0] || "Usuário";
     const sobrenome = partesDoNome.slice(1).join(' ') || "";
 
-    // Certifica o envio aguardando a Promise do sendEvent resolver
-    SI.sendEvent({
-      interaction: {
-        name: "User Register", 
-      },
-      userProfileAttr: {
-        id: email.trim(),               
-        firstName: primeiroNome,        
-        lastName: sobrenome,            
-        emailAddress: email.trim(),     
-        cpf: cpf.replace(/\D/g, "")     
-      }
-    })
-    .then(() => {
-      console.log("Salesforce Debug: Cadastro transmitido com sucesso via SDK!", email);
-      callbackFinalizar(); 
-    })
-    .catch((err: any) => {
-      console.error("Salesforce Erro no processamento do evento:", err);
-      // Avança de qualquer forma para não quebrar o fluxo do usuário caso o servidor demore a responder
-      callbackFinalizar(); 
-    });
+    // Certifica o envio aguardando a Promise do sendEvent resolver antes de mudar de página
+    if (typeof SI.sendEvent === "function") {
+      SI.sendEvent({
+        interaction: {
+          name: "User Register", 
+        },
+        userProfileAttr: {
+          id: email.trim(),               
+          firstName: primeiroNome,        
+          lastName: sobrenome,            
+          emailAddress: email.trim(),     
+          cpf: cpf.replace(/\D/g, "")     
+        }
+      })
+      .then(() => {
+        console.log("Salesforce Debug: Cadastro transmitido com sucesso via SDK!", email);
+        callbackFinalizar(); 
+      })
+      .catch((err: any) => {
+        console.error("Salesforce Erro no processamento do evento:", err);
+        callbackFinalizar(); 
+      });
+    } else {
+      callbackFinalizar();
+    }
   };
 
   const handleCadastro = (e: React.FormEvent) => {
@@ -95,12 +107,12 @@ export default function CadastroPage() {
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_cpf', cpf);
   
-    // 3. ESTRATÉGIA RESILIENTE DE POLLING (INTERVALO) SEM TRAVAMENTO
+    // 3. ESTRATÉGIA RESILIENTE DE POLLING COM RE-INIT INTEGRADO
     if (typeof window !== "undefined") {
       const SI = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
   
-      if (SI && typeof SI.sendEvent === "function") {
-        // Cenário A: O script já está totalmente pronto no escopo global
+      if (SI) {
+        // Cenário A: O script base já está na janela, invoca o despacho diretamente
         despacharDadosSalesforce(SI, finalizarProcessoCadastro);
       } else {
         // Cenário B: O script está injetado mas o objeto do window está terminando de iniciar
@@ -111,17 +123,17 @@ export default function CadastroPage() {
           tentativas++;
           const SI_REAVALIADO = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
           
-          if (SI_REAVALIADO && typeof SI_REAVALIADO.sendEvent === "function") {
+          if (SI_REAVALIADO) {
             clearInterval(checarSDK);
             despacharDadosSalesforce(SI_REAVALIADO, finalizarProcessoCadastro);
           } 
-          // Limite de segurança (Timeout): Após 2 segundos (20 tentativas), libera o usuário para evitar o congelamento da tela
+          // Limite de segurança (Timeout): Após 2 segundos, avança o fluxo da UI se o rastreamento falhar
           else if (tentativas >= 20) {
             clearInterval(checarSDK);
             console.warn("Salesforce Timeout: Avançando cadastro sem rastreamento para evitar travamento da UI.");
             finalizarProcessoCadastro();
           }
-        }, 100); // Executa a checagem a cada 100 milissegundos
+        }, 100); 
       }
     } else {
       finalizarProcessoCadastro();
