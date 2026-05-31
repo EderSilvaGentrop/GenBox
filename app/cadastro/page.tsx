@@ -49,10 +49,10 @@ export default function CadastroPage() {
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_cpf', cpf);
   
-    // --- INTEGRAÇÃO AJUSTADA PARA SALESFORCE INTERACTIONS SDK ---
+    // --- INTEGRAÇÃO AJUSTADA COM FALLBACK DE SEGURANÇA PARA O SITEMAP ---
     if (typeof window !== "undefined") {
-      // Captura o SDK moderno mapeado na janela global
-      const SI = (window as any).SalesforceInteractions || (window as any).SI;
+      // Procura por qualquer uma das instâncias possíveis que o sitemap ou o loader injetaram no window
+      const SI = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
   
       if (SI && typeof SI.sendEvent === "function") {
         // Separa o nome pelas lacunas de espaço
@@ -66,7 +66,7 @@ export default function CadastroPage() {
   
         SI.sendEvent({
           interaction: {
-            name: "User Register", // Nome da ação/interação no Salesforce
+            name: "User Register", // Nome correto da ação mapeada
           },
           userProfileAttr: {
             id: email.trim(),               // Identificador único do perfil
@@ -77,9 +77,10 @@ export default function CadastroPage() {
           }
         });
   
-        console.log("Salesforce Debug: Cadastro enviado via SDK Moderno:", email);
+        console.log("Salesforce Debug: Cadastro enviado com sucesso via SDK!", email);
       } else {
-        console.warn("Salesforce SDK não foi detectado no escopo global (window).");
+        // Fallback caso a aplicação rode antes do script da Salesforce carregar por completo
+        console.error("Salesforce SDK indisponível no momento do clique (window.SalesforceInteractions não carregou a tempo).");
       }
     }
   
