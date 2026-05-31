@@ -5,7 +5,7 @@ import Navbar from '../../../components/Navbar';
 import { useParams, useRouter } from 'next/navigation';
 import produtos from '../../../produtos.json';
 import { useCart } from '../../../context/CartContext';
-import { ArrowLeft, ShoppingBag, ShieldCheck, Truck, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, ShieldCheck, Truck, RefreshCcw, CheckCircle } from 'lucide-react';
 
 // Interface atualizada para suportar os novos IDs de texto
 interface Produto {
@@ -33,6 +33,9 @@ export default function ProdutoDetalhe() {
   const router = useRouter();
   const { adicionarAoCarrinho } = useCart();
   const [verticalAtiva, setVerticalAtiva] = useState('ecommerce');
+  
+  // NOVO: Estado para controlar a exibição do alerta de sucesso
+  const [mensagemVisivel, setMensagemVisivel] = useState(false);
 
   // Recupera a vertical salva para manter a cor correta
   useEffect(() => {
@@ -56,6 +59,22 @@ export default function ProdutoDetalhe() {
     return isFarm ? CONFIG_ESTILO.farmacia : CONFIG_ESTILO.ecommerce;
   }, [idParam]);
 
+  // NOVO: Função para adicionar ao carrinho e disparar o alerta flutuante
+  const handleAdicionarAoCarrinho = () => {
+    if (!produto) return;
+    
+    // Adiciona o produto usando o context existente
+    adicionarAoCarrinho(produto as any);
+    
+    // Mostra o feedback visual na tela
+    setMensagemVisivel(true);
+    
+    // Esconde automaticamente o aviso após 3 segundos
+    setTimeout(() => {
+      setMensagemVisivel(false);
+    }, 3000);
+  };
+
   if (!produto) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center font-black uppercase italic gap-4">
@@ -71,9 +90,20 @@ export default function ProdutoDetalhe() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-black font-sans pb-20">
+    <main className="min-h-screen bg-white text-black font-sans pb-20 relative">
       <Header />
       <Navbar categorias={estilo.categorias} />
+
+      {/* --- MENSAGEM FLUTUANTE (TOAST DE SUCESSO) --- */}
+      {mensagemVisivel && (
+        <div 
+          className="fixed top-6 right-6 z-50 flex items-center gap-3 px-6 py-4 rounded-2xl font-black uppercase italic text-xs shadow-2xl border-2 border-black animate-in fade-in slide-in-from-top-4 duration-300 text-black"
+          style={{ backgroundColor: estilo.cor }}
+        >
+          <CheckCircle size={18} />
+          Produto adicionado ao carrinho!
+        </div>
+      )}
 
       <div className="max-w-[1200px] mx-auto px-4 md:px-10 py-12">
         <button 
@@ -128,8 +158,9 @@ export default function ProdutoDetalhe() {
               </p>
             </div>
 
+            {/* BOTÃO ALTERADO: Agora chama a função handleAdicionarAoCarrinho */}
             <button 
-              onClick={() => adicionarAoCarrinho(produto as any)}
+              onClick={handleAdicionarAoCarrinho}
               className="w-full text-white py-6 rounded-full font-black uppercase italic text-sm flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-xl active:scale-95"
               style={{ backgroundColor: estilo.cor }}
             >

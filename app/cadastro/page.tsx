@@ -49,21 +49,38 @@ export default function CadastroPage() {
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_cpf', cpf);
   
-    // Dispara evento para MCP
-    if (typeof window !== "undefined" && (window as any).Evergage) {
-      (window as any).Evergage.sendEvent({
-        action: "User Register",
-        user: {
-          id: email.trim(), // IDENTIFICADOR ÚNICO
-          attributes: {
-            Nome: nome.trim(),
-            cpf: cpf.replace(/\D/g, ""), // envia sem máscara
-            emailAddress: email.trim()
-          }
-        }
-      });
+    // --- INTEGRAÇÃO AJUSTADA PARA SALESFORCE INTERACTIONS SDK ---
+    if (typeof window !== "undefined") {
+      // Captura o SDK moderno mapeado na janela global
+      const SI = (window as any).SalesforceInteractions || (window as any).SI;
   
-      console.log("MCP Debug: Cadastro enviado para MCP:", email);
+      if (SI && typeof SI.sendEvent === "function") {
+        // Separa o nome pelas lacunas de espaço
+        const partesDoNome = nome.trim().split(/\s+/);
+        
+        // Pega a primeira palavra como First Name
+        const primeiroNome = partesDoNome[0] || "Usuário";
+        
+        // Junta o restante das palavras como Last Name (se houver mais de um nome)
+        const sobrenome = partesDoNome.slice(1).join(' ') || "";
+  
+        SI.sendEvent({
+          interaction: {
+            name: "User Register", // Nome da ação/interação no Salesforce
+          },
+          userProfileAttr: {
+            id: email.trim(),               // Identificador único do perfil
+            firstName: primeiroNome,        // Envia apenas o Primeiro Nome
+            lastName: sobrenome,            // Envia o Sobrenome isolado
+            emailAddress: email.trim(),     // E-mail do usuário
+            cpf: cpf.replace(/\D/g, "")     // Remove os pontos e traços do CPF
+          }
+        });
+  
+        console.log("Salesforce Debug: Cadastro enviado via SDK Moderno:", email);
+      } else {
+        console.warn("Salesforce SDK não foi detectado no escopo global (window).");
+      }
     }
   
     setEnviado(true);
