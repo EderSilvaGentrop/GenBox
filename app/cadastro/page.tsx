@@ -48,12 +48,21 @@ export default function CadastroPage() {
       .replace(/(-\d{2})\d+?$/, '$1'); 
   };
 
-  // 2. Função isolada para montar o objeto e disparar o evento correto
-  const despacharDadosSalesforce = (SI: any) => {
+  // Executa os passos de transição visível e redirecionamento do e-commerce
+  const finalizarProcessoCadastro = () => {
+    setEnviado(true);
+    setTimeout(() => {
+      router.push('/');
+    }, 3000);
+  };
+
+  // 2. Função isolada para disparar o evento retornando a Promise do SDK
+  const despacharDadosSalesforce = (SI: any, callbackFinalizar: () => void) => {
     const partesDoNome = nome.trim().split(/\s+/);
     const primeiroNome = partesDoNome[0] || "Usuário";
     const sobrenome = partesDoNome.slice(1).join(' ') || "";
 
+    // Certifica o envio aguardando a Promise do sendEvent resolver
     SI.sendEvent({
       interaction: {
         name: "User Register", 
@@ -65,8 +74,16 @@ export default function CadastroPage() {
         emailAddress: email.trim(),     
         cpf: cpf.replace(/\D/g, "")     
       }
+    })
+    .then(() => {
+      console.log("Salesforce Debug: Cadastro transmitido com sucesso via SDK!", email);
+      callbackFinalizar(); 
+    })
+    .catch((err: any) => {
+      console.error("Salesforce Erro no processamento do evento:", err);
+      // Avança de qualquer forma para não quebrar o fluxo do usuário caso o servidor demore a responder
+      callbackFinalizar(); 
     });
-    console.log("Salesforce Debug: Cadastro transmitido com sucesso via SDK!", email);
   };
 
   const handleCadastro = (e: React.FormEvent) => {
@@ -78,15 +95,15 @@ export default function CadastroPage() {
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_cpf', cpf);
   
-    // 3. ESTRATÉGIA DE FILA DE ESPERA (PROMISE/CALLBACK)
+    // 3. ESTRATÉGIA DE FILA DE ESPERA AMARRADA COM O CALLBACK
     if (typeof window !== "undefined") {
       const SI = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
   
       if (SI && typeof SI.sendEvent === "function") {
-        // Cenário A: O script já terminou de carregar na memória
-        despacharDadosSalesforce(SI);
+        // Cenário A: O script já está pronto na memória RAM, envia e depois redireciona
+        despacharDadosSalesforce(SI, finalizarProcessoCadastro);
       } else {
-        // Cenário B: O script foi injetado, mas ainda está carregando. Esperamos o evento 'load' do elemento
+        // Cenário B: O script foi injetado mas está carregando, aguarda o evento nativo de load
         console.log("Salesforce Debug: SDK em cache/carregamento. Aguardando ativação...");
         const scriptDOM = document.querySelector('script[src*="c360a.min.js"]') || document.getElementById('sf-interactions-sdk');
         
@@ -94,20 +111,19 @@ export default function CadastroPage() {
           scriptDOM.addEventListener('load', () => {
             const SI_ATUALIZADO = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
             if (SI_ATUALIZADO && typeof SI_ATUALIZADO.sendEvent === "function") {
-              despacharDadosSalesforce(SI_ATUALIZADO);
+              despacharDadosSalesforce(SI_ATUALIZADO, finalizarProcessoCadastro);
+            } else {
+              finalizarProcessoCadastro();
             }
           });
         } else {
           console.error("Salesforce SDK indisponível no momento do clique (tag script ausente).");
+          finalizarProcessoCadastro();
         }
       }
+    } else {
+      finalizarProcessoCadastro();
     }
-  
-    setEnviado(true);
-  
-    setTimeout(() => {
-      router.push('/');
-    }, 3000);
   };
 
   return (
