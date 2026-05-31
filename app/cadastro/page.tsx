@@ -22,18 +22,16 @@ export default function CadastroPage() {
   const [vertical, setVertical] = useState('ecommerce');
   const router = useRouter();
 
-  // Garante o estado visual e força o script do Salesforce no escopo global
+  // 1. Injeta o script logo na montagem da página se ele não existir
   useEffect(() => {
     const salva = localStorage.getItem('mcp_vertical_teste');
     if (salva && VERTICAIS[salva]) setVertical(salva);
 
-    // Verifica se o SDK já está instanciado no DOM para não duplicar tags
     const scriptExistente = document.querySelector('script[src*="c360a.min.js"]');
-    
     if (!scriptExistente && typeof window !== "undefined") {
-      console.log("Salesforce Debug: Injetando dinamicamente o c360a.min.js na rota de cadastro...");
       const script = document.createElement('script');
       script.src = "https://sitegenbox.vercel.app/c360a.min.js"; 
+      script.id = "sf-interactions-sdk";
       script.async = true;
       document.head.appendChild(script);
     }
@@ -50,43 +48,58 @@ export default function CadastroPage() {
       .replace(/(-\d{2})\d+?$/, '$1'); 
   };
 
+  // 2. Função isolada para montar o objeto e disparar o evento correto
+  const despacharDadosSalesforce = (SI: any) => {
+    const partesDoNome = nome.trim().split(/\s+/);
+    const primeiroNome = partesDoNome[0] || "Usuário";
+    const sobrenome = partesDoNome.slice(1).join(' ') || "";
+
+    SI.sendEvent({
+      interaction: {
+        name: "User Register", 
+      },
+      userProfileAttr: {
+        id: email.trim(),               
+        firstName: primeiroNome,        
+        lastName: sobrenome,            
+        emailAddress: email.trim(),     
+        cpf: cpf.replace(/\D/g, "")     
+      }
+    });
+    console.log("Salesforce Debug: Cadastro transmitido com sucesso via SDK!", email);
+  };
+
   const handleCadastro = (e: React.FormEvent) => {
     e.preventDefault();
   
     if (!nome.trim() || !email.trim() || !cpf.trim()) return;
   
-    // Salva no localStorage
     localStorage.setItem('user_name', nome);
     localStorage.setItem('user_email', email);
     localStorage.setItem('user_cpf', cpf);
   
-    // --- VALIDAÇÃO COM CAPTURA GARANTIDA (FALLBACK DE VARIÁVEIS) ---
+    // 3. ESTRATÉGIA DE FILA DE ESPERA (PROMISE/CALLBACK)
     if (typeof window !== "undefined") {
-      // Procura em todas as frentes conhecidas onde o SDK se expõe na janela
       const SI = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
   
       if (SI && typeof SI.sendEvent === "function") {
-        // Divide as cadeias de strings pelos espaços em branco
-        const partesDoNome = nome.trim().split(/\s+/);
-        const primeiroNome = partesDoNome[0] || "Usuário";
-        const sobrenome = partesDoNome.slice(1).join(' ') || "";
-  
-        SI.sendEvent({
-          interaction: {
-            name: "User Register", 
-          },
-          userProfileAttr: {
-            id: email.trim(),               
-            firstName: primeiroNome,        
-            lastName: sobrenome,            
-            emailAddress: email.trim(),     
-            cpf: cpf.replace(/\D/g, "")     
-          }
-        });
-  
-        console.log("Salesforce Debug: Cadastro transmitido via SDK!", email);
+        // Cenário A: O script já terminou de carregar na memória
+        despacharDadosSalesforce(SI);
       } else {
-        console.error("Salesforce SDK indisponível no momento do clique (window.SalesforceInteractions não carregou a tempo).");
+        // Cenário B: O script foi injetado, mas ainda está carregando. Esperamos o evento 'load' do elemento
+        console.log("Salesforce Debug: SDK em cache/carregamento. Aguardando ativação...");
+        const scriptDOM = document.querySelector('script[src*="c360a.min.js"]') || document.getElementById('sf-interactions-sdk');
+        
+        if (scriptDOM) {
+          scriptDOM.addEventListener('load', () => {
+            const SI_ATUALIZADO = (window as any).SalesforceInteractions || (window as any).SI || (window as any).Evergage;
+            if (SI_ATUALIZADO && typeof SI_ATUALIZADO.sendEvent === "function") {
+              despacharDadosSalesforce(SI_ATUALIZADO);
+            }
+          });
+        } else {
+          console.error("Salesforce SDK indisponível no momento do clique (tag script ausente).");
+        }
       }
     }
   
